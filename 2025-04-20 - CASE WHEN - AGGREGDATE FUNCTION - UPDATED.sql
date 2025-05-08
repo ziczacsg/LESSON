@@ -1,0 +1,195 @@
+﻿
+USE RISK_PORTFOLIO 
+
+
+
+/*----------------------------------------------------------
+  AGGREGATE FUNCTION (HÀM TỔ HỢP): SUM, MIN, MAX, COUNT, AVG 
+------------------------------------------------------------*/
+
+--VD1:
+/*
+   Viết gọn trong 1 câu truy vấn các yêu cầu sau, sử dụng bảng DIM_CUSTOMER_PROFILE:
+   1. Lấy tổng số giải ngân qua các tháng.
+   2. Lấy tổng số khoản vay qua các tháng.
+   3. Giá trị giải ngân lớn nhất.
+   4. Giá trị giải ngân nhỏ nhất.
+   5. Lấy giá trị giải ngân trung bình.
+*/
+
+
+SELECT
+       CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23) AS [PERIOD]
+	  ,SUM(LOAN_AMOUNT)						     AS [DISB_AMT] --SẼ GROUP BY TẤT CẢ CÁC CỘT CÒN LẠI TRỪ NHÓM HÀM SUM, MIN, MAX, COUNT, AVG 
+	  ,COUNT(LOAN_ACCOUNT_NUMBER)                AS [LOAN_ACCOUNT_NO] --CÓ THỂ COUNT(*) NGHĨA LÀ ĐẾM TẤT CẢ DÒNG TRONG BẢNG DỮ LIỆU VỚI ĐIỀU KIỆN SỐ KHẾ ƯỚC LÀ UNIQUE
+	  ,MAX(LOAN_AMOUNT)					         AS [MAX_DISB_AMT]
+	  ,MIN(LOAN_AMOUNT)					         AS [MIN_DISB_AMT]
+	  ,AVG(LOAN_AMOUNT)						     AS [AVG_DISB_AMT]
+FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]
+GROUP BY CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23)
+ORDER BY 1 --DESC: SORTING GIẢM DẦN /ASC: SORTING TĂNG DẦN --ORDER BY 1: SORTING CỘT SỐ 1 ~ TƯƠNG TỰ SORTING CÁC CỘT 2,3,4,5 CÒN LẠI
+
+
+--VD2: 
+
+/*
+   Viết gọn trong 1 câu truy vấn các yêu cầu sau, sử dụng bảng DIM_CUSTOMER_PROFILE:
+   1. Lấy tổng số giải ngân 6 tháng gần nhất.
+   2. Lấy tồng số khoản vay 6 tháng gần nhất.
+   3. Lấy tổng số giải ngân tháng gần nhất.
+   4. Lấy tồng số khoản vay tháng gần nhất.
+*/
+
+--1. Lấy tổng số giải ngân 6 tháng gần nhất.
+
+--CÁCH HIỂU THÔNG THƯỜNG 
+SELECT
+       CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23) AS [PERIOD]
+	  ,SUM(LOAN_AMOUNT)							 AS [DISB_MAT]
+FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]
+WHERE CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23) IN ('2023-07','2023-08','2023-09','2023-10','2023-11','2023-12')
+GROUP BY CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23)
+
+--CÁCH HIỂU TỐI ƯU 
+
+
+--SELECT DATEADD(MONTH,-7,CAST(GETDATE() AS DATE)): LÙI THÁNG THEO NGÀY THỰ TẾ
+
+--SELECT EOMONTH(GETDATE(),-7): LÙI THÁNG THEO CUỐI THÁNG, VÌ HÀM "EOMONTH()" LUÔN CHUYỂN ĐỔI VỀ CUỐI THÁNG 
+
+SELECT
+       CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23) AS [PERIOD] --DẠNG FORMAT NĂM VÀ THÁNG (YYYY-MM) KIỂU CHUỖI
+	  ,EOMONTH(DISBURSEMENT_DATE)                AS [EOMONTH] --DẠNG FORMAT NĂM, THÁNG, NGÀY (YYYY-MM-DD) KIỂU THỜI GIAN 
+	  ,SUM(LOAN_AMOUNT)							 AS [DISB_MAT]
+FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]
+WHERE CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23) > CONVERT(NVARCHAR(7),(SELECT EOMONTH(CAST(MAX(DISBURSEMENT_DATE) AS DATE),-6) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]),23)
+GROUP BY CONVERT(NVARCHAR(7),DISBURSEMENT_DATE,23),EOMONTH(DISBURSEMENT_DATE)  
+
+--STEP1: LẤY THỜI ĐIỂM GẦN NHẤT HOẶC GỌI LÀ LẤY MỐC THỜI GIAN (THƯỜNG THÌ LẤY "NGÀY BÁO CÁO GẦN NHẤT " LÀM CHUẨN: SELECT MAX(DISBURSEMENT_DATE) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE] ~ 2023-12-30 00:00:00.000
+
+--STEP2: CHUYỂN VỀ ĐỊNH DẠNG YYYY-MM-DD: SELECT CAST(MAX(DISBURSEMENT_DATE) AS DATE) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]
+
+--STEP3: CHUYỂN VỀ CUỐI THÁNG VÀ LÙI VỀ 6 THÁNG TRƯỚC: SELECT EOMONTH(CAST(MAX(DISBURSEMENT_DATE) AS DATE),-6) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE] ~ 2023-12-31
+
+--STEP4: CHUYỂN VỀ ĐỊNH DẠNG YYYY-MM: CONVERT(NVARCHAR(7),(SELECT EOMONTH(CAST(MAX(DISBURSEMENT_DATE) AS DATE),-7) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]),23)
+
+--LƯU Ý: FUNCTION EOMONTH() CHỈ LÙI THÁNG, KHÔNG LÙI NGÀY, NĂM, QUÝ, GIỜ, PHÚT, GIÂY NHƯ HÀM DATEADD
+
+
+--LẤY SỐ GIẢI NGÂN NGÀY HÔM QUA
+
+SELECT
+       DISBURSEMENT_DATE
+	  ,SUM(LOAN_AMOUNT)							 AS [DISB_MAT]
+FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]
+WHERE DISBURSEMENT_DATE = DATEADD(DAY,-1,(SELECT MAX(DISBURSEMENT_DATE) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]))
+GROUP BY DISBURSEMENT_DATE
+
+--STEP1: LẤY MỐC THỜI GIAN GẦN NHẤT LÀM CHUẨN: SELECT MAX(DISBURSEMENT_DATE) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE] ~ 2023-12-30 00:00:00.000
+
+--STEP2: LÙI VỀ 1 NGÀY ~ NGÀY HÔM QUA: DATEADD(DAY,-1,(SELECT MAX(DISBURSEMENT_DATE) FROM [RISK_PORTFOLIO]..[DIM_CUSTOMER_PROFILE]))
+
+--LƯU Ý: HÀM DATEADD HỖ TRỢ VIỆC LÙI NGÀY, THÁNG, NĂM, QUÝ, GIỜ, PHÚT, GIÂY, V.V..
+
+/*
+   VỀ NHÀ NHỚ LÀM TIẾP 2 CÂU BÊN DƯỚI:
+   3. Lấy tổng số giải ngân tháng gần nhất.
+   4. Lấy tồng số khoản vay tháng gần nhất.
+*/
+
+
+
+/*----------------------------------------------------------------------------------
+
+CASE
+     WHEN condition1 THEN result1 (kết quả cột, giá trị kiểu số, giá trị kiểu chuỗi)
+     WHEN condition2 THEN result2
+     WHEN conditionN THEN resultN
+     ELSE result
+END;
+----------------------------------------------------------------------------------*/
+
+
+--VÍ DỤ 1 
+
+SELECT 
+		 LOAN_ACCOUNT_NUMBER
+		,LOAN_AMOUNT	
+		,CASE WHEN LOAN_AMOUNT < (50 * POWER(10,6))   THEN '< 50M'
+			  WHEN LOAN_AMOUNT < (100 * POWER(10,6))  THEN '< 100M'
+			  WHEN LOAN_AMOUNT < (150 * POWER(10,6))  THEN '< 150M'
+			  WHEN LOAN_AMOUNT < (200 * POWER(10,6))  THEN '< 200M' END AS DISB_SEGMENT
+FROM RISK_PORTFOLIO..DIM_CUSTOMER_PROFILE
+
+
+--VÍ DỤ 2
+
+SELECT 
+       LOAN_ACCOUNT_NUMBER
+	  ,INCOME
+	  ,CASE WHEN INCOME < (10 * POWER(10,6))  THEN '< 10M'
+	        WHEN INCOME < (50 * POWER(10,6))  THEN '< 50M'
+			WHEN INCOME < (100 * POWER(10,6)) THEN '< 100M'
+			WHEN INCOME < (200 * POWER(10,6)) THEN '< 200M'
+			WHEN INCOME < (300 * POWER(10,6)) THEN '< 300M' END AS INCOME_SEGMENT
+FROM RISK_PORTFOLIO..DIM_CUSTOMER_PROFILE
+
+
+--VÍ DỤ 3
+
+
+SELECT 
+       LOAN_ACCOUNT_NUMBER
+	  ,TENOR 
+	  ,LOAN_AMOUNT
+	  ,CASE WHEN TENOR < 24 THEN '< 24 - TENOR'
+	        WHEN TENOR < 36 THEN '< 36 - TENOR'
+			WHEN TENOR < 48 THEN '< 48 - TENOR' END TENOR_SEGMENT 
+FROM RISK_PORTFOLIO..DIM_CUSTOMER_PROFILE
+
+
+/*
+   VỀ NHÀ NHỚ LÀM TIẾP 2 CÂU BÊN DƯỚI:
+   3. Lấy tổng số giải ngân tháng gần nhất.
+   4. Lấy tồng số khoản vay tháng gần nhất.
+*/
+
+
+
+--TẤT CẢ CÁC BÀI BÊN DƯỚI ĐỚI VỚI BẢNG FACT_LOAN_MANAGEMENT VÀ FACT_LOAN_COLLECTION CHỐT VỀ THÁNG BÁO CÁO LÀ 2023-12-31
+
+-- Bài 1: Phân tích chất lượng giải ngân theo vùng từ bảng DIM_CUSTOMER_PROFILE
+-- Yêu cầu: Thống kê số lượng khoản vay, tổng giải ngân, lãi suất trung bình, và số lượng khoản vay có bảng lương ngân hàng theo từng vùng
+--AGGREGATE FUNCTION
+
+-- Bài 2: Phân tích khoản vay theo độ tuổi từ bảng DIM_CUSTOMER_PROFILE 
+-- Yêu cầu: Phân nhóm khách hàng theo độ tuổi và thống kê phân nhóm thu nhập, tổng số tiền vay, lãi suất trung bình
+
+
+/*
+  Sử dụng bảng RISK_PORTFOLIO..FACT_LOAN_MANAGEMENT --> CHỐT VỀ "WHERE REPORT_DATE = '2023-12-31'"
+
+  Bài 3: Tổng dư nợ (OUTSTANDING ~ PRINCIPAL AMOUNT ~ ENR (ENDING NET RECEIVABLE)) 
+       , Tổng nợ xấu (OUTSTANDING với DPD > 90),  --NPL: NON-PERFORMING LOAN LÀ TỶ LỆ NỢ XẤU
+	   ,Ticket Size (SUM(LOAN_AMOUNT) / COUNT(LOAN_ACCOUNT_NO))
+	   , Tổng số tiền WO (OUTSTANDING với DPD > 180), Tổng khoản vay (LOAN_ACCOUNT_NO) 
+	   , Tổng khoản vay bị nợ xấu (Những LOAN_ACCOUNT_NO có DPD > 90) 
+	   , Tổng khoản vay bị WO (DPD > 180) 
+	   
+*/
+
+
+SELECT * FROM RISK_PORTFOLIO..FACT_LOAN_MANAGEMENT
+
+
+
+
+
+SELECT 
+       REPORT_DATE
+	  ,SUM(CASE WHEN DPD < 180 THEN OUTSTANDING_AMOUNT ELSE 0 END) AS ENR --BÊN FINTECH THÌ DƯ NỢ CHỈ TÍNH NHỮNG KHOẢN VAY CÓ DPD < 180 NGÀY 
+	  ,SUM(CASE WHEN DPD > 90 AND DPD <= 180 THEN OUTSTANDING_AMOUNT ELSE 0 END) AS [OD3Plus: OVERDUE 3 +] --NHỮNG KHOAN VAY CÓ DPD > 180 NGÀY ĐƯỢC XEM LÀ WO ~ WRITE-OFF (CHỈ CÓ FINTECH THỪA NHẬN), NPL THÌ DPD > 90 (FINTECH VÀ NHTM ĐIỀU ACCEPT)
+	  ,SUM(CASE WHEN DPD > 90 AND DPD <= 180 THEN OUTSTANDING_AMOUNT ELSE 0 END) / SUM(CASE WHEN DPD < 180 THEN OUTSTANDING_AMOUNT ELSE 0 END) AS NPL
+FROM RISK_PORTFOLIO..FACT_LOAN_MANAGEMENT
+WHERE REPORT_DATE = '2023-12-31'
+GROUP BY REPORT_DATE
